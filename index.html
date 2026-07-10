@@ -148,6 +148,32 @@
   @keyframes fadeSlideDown{ from{opacity:0; transform:translateY(-14px);} to{opacity:1; transform:none;} }
   @keyframes fadeSlideUp{ from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:none;} }
 
+  .samples-section{ margin-top:22px; padding-top:20px; border-top:1px solid var(--hairline); }
+  .samples-hint{ font-size:12px; color:var(--text-dim); margin:8px 0 14px; max-width:640px; line-height:1.5; }
+  .samples-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .sample-card{
+    flex:1 1 170px; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--panel-border); border-radius:14px; padding:14px;
+    background:rgba(255,255,255,.02); transition:border-color .2s ease;
+  }
+  .sample-card.is-custom{ border-color:rgba(95,225,201,.4); }
+  .sample-title{ font-family:var(--font-display); font-size:14px; font-weight:600; }
+  .upload-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    border:1px dashed var(--panel-border); border-radius:9px; padding:8px 10px;
+    font-size:12px; color:var(--text-dim); cursor:pointer; transition:all .15s ease;
+  }
+  .upload-btn:hover{ border-color:var(--teal); color:var(--teal); }
+  .upload-btn.disabled, .upload-btn:has(input:disabled){ opacity:.4; cursor:not-allowed; pointer-events:none; }
+  .sample-status{ font-family:var(--font-mono); font-size:11px; color:var(--text-dim); word-break:break-word; }
+  .sample-card.is-custom .sample-status{ color:var(--teal); }
+  .btn-remove{
+    align-self:flex-start; background:transparent; border:1px solid var(--panel-border);
+    color:var(--text-dim); font-size:11px; width:22px; height:22px; border-radius:50%;
+    line-height:1; padding:0;
+  }
+  .btn-remove:hover{ border-color:var(--amber); color:var(--amber); }
+
   @media (prefers-reduced-motion: reduce){
     .topbar, .console{ animation:none; }
   }
@@ -239,6 +265,9 @@
         <label>Fréquence des motifs <span class="val" id="val-motif"></span>
           <input type="range" id="sl-motif" min="0" max="100" step="1">
         </label>
+        <label>Vitesse du motif <span class="val" id="val-motif-speed"></span>
+          <input type="range" id="sl-motif-speed" min="0" max="4" step="1">
+        </label>
       </section>
 
       <section>
@@ -250,6 +279,49 @@
           <input type="range" id="sl-delay" min="0" max="100" step="1">
         </label>
       </section>
+    </div>
+
+    <div class="samples-section">
+      <span class="section-label">Échantillons personnalisés</span>
+      <p class="samples-hint">Remplacez un instrument synthétisé par votre propre son (un seul fichier par instrument, réparti sur tout le clavier). Appuyez d'abord sur Lecture.</p>
+      <div class="samples-row" id="samples-row">
+        <div class="sample-card" data-role="pad">
+          <span class="sample-title">Pad</span>
+          <label class="upload-btn">
+            <input type="file" accept="audio/*" data-role="pad" disabled hidden>
+            <span>Choisir un fichier</span>
+          </label>
+          <span class="sample-status" data-status="pad">Synthé par défaut</span>
+          <button type="button" class="btn-remove" data-role="pad" hidden>✕</button>
+        </div>
+        <div class="sample-card" data-role="bass">
+          <span class="sample-title">Basse</span>
+          <label class="upload-btn">
+            <input type="file" accept="audio/*" data-role="bass" disabled hidden>
+            <span>Choisir un fichier</span>
+          </label>
+          <span class="sample-status" data-status="bass">Synthé par défaut</span>
+          <button type="button" class="btn-remove" data-role="bass" hidden>✕</button>
+        </div>
+        <div class="sample-card" data-role="pluck">
+          <span class="sample-title">Pluck</span>
+          <label class="upload-btn">
+            <input type="file" accept="audio/*" data-role="pluck" disabled hidden>
+            <span>Choisir un fichier</span>
+          </label>
+          <span class="sample-status" data-status="pluck">Synthé par défaut</span>
+          <button type="button" class="btn-remove" data-role="pluck" hidden>✕</button>
+        </div>
+        <div class="sample-card" data-role="accent">
+          <span class="sample-title">Accents</span>
+          <label class="upload-btn">
+            <input type="file" accept="audio/*" data-role="accent" disabled hidden>
+            <span>Choisir un fichier</span>
+          </label>
+          <span class="sample-status" data-status="accent">Synthé par défaut</span>
+          <button type="button" class="btn-remove" data-role="accent" hidden>✕</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -286,6 +358,20 @@ const CHORD_RECIPES = {
 };
 const SIMPLE_QUALITIES = ['maj','min','sus2','sus4'];
 const RICH_QUALITIES   = ['add9','maj7','min7'];
+
+// Gammes "à tierce majeure" -> le motif du pluck utilise l'Ionien (majeur).
+// Gammes "à tierce mineure"  -> le motif du pluck utilise l'Éolien (mineur naturel).
+const MAJOR_LIKE_SCALES = ['major', 'lydian', 'mixolydian'];
+function isMajorLikeScale(scaleKey){ return MAJOR_LIKE_SCALES.includes(scaleKey); }
+
+// Vitesses disponibles pour le motif du pluck (du plus lent au plus rapide).
+const MOTIF_SPEEDS = [
+  { value:'4n',  label:'Très lent' },
+  { value:'4t',  label:'Lent' },
+  { value:'8n',  label:'Modéré' },
+  { value:'8t',  label:'Rapide' },
+  { value:'16n', label:'Très rapide' },
+];
 
 const MOOD_PRESETS = {
   relax:      { scale:'major',      tempo:58, filter:2600, reverb:55, delay:25, complexity:35, density:35, accents:20, motif:30 },
@@ -421,39 +507,40 @@ class MelodyEngine {
     this.pattern = [];
     this.length = 8;
     this.stepIndex = 0;
-    this.generate([60,64,67], 30);
+    this.scalePool = [];
+    this.setScale(0, true); // Do majeur par défaut, génère un premier motif
   }
 
-  generate(chordNotes, complexity){
-    this.length = choice([8, 8, 12, 16]);
+  // Construit le réservoir de notes diatoniques (Ionien ou Éolien) sur ~3 octaves
+  // autour du registre du pluck, puis régénère un nouveau motif dans ce réservoir.
+  setScale(rootPc, majorLike){
+    const steps = majorLike ? SCALES.major.steps : SCALES.minor.steps;
+    const pool = [];
+    for (let oct = -1; oct <= 1; oct++){
+      steps.forEach(s => pool.push(60 + rootPc + s + oct * 12));
+    }
+    this.scalePool = [...new Set(pool)].sort((a, b) => a - b);
+    this.generate();
+  }
+
+  // Motif répétitif à trous nul : cycle fixe de 4, 8 ou 16 notes, toutes dans la gamme.
+  generate(){
+    this.length = choice([4, 8, 16]);
     const pattern = [];
     for (let i = 0; i < this.length; i++){
-      if (Math.random() < 0.35){ pattern.push(null); continue; }
-      const passingProb = 0.15 + (complexity / 100) * 0.15;
-      let note;
-      if (Math.random() < passingProb){
-        note = choice(chordNotes) + 12 + choice([-2,-1,1,2]);
-      } else {
-        note = choice(chordNotes) + 12;
-      }
-      pattern.push({ note, velocity: randFloat(0.32, 0.68) });
+      pattern.push({ note: choice(this.scalePool), velocity: randFloat(0.32, 0.68) });
     }
     this.pattern = pattern;
     this.stepIndex = 0;
   }
 
-  mutate(chordNotes, amount){
+  // Mutation légère : remplace quelques notes du cycle par d'autres notes de la gamme.
+  // Jamais de silence introduit, le cycle reste toujours plein.
+  mutate(amount){
     const mutations = 1 + Math.round(clamp(amount, 0, 1) * 3);
     for (let i = 0; i < mutations; i++){
       const idx = randInt(0, this.pattern.length - 1);
-      const r = Math.random();
-      if (r < 0.35){
-        this.pattern[idx] = null;
-      } else if (r < 0.8){
-        this.pattern[idx] = { note: choice(chordNotes) + 12, velocity: randFloat(0.32, 0.68) };
-      } else {
-        this.pattern[idx] = { note: choice(chordNotes) + 12 + choice([-2,-1,1,2]), velocity: randFloat(0.28, 0.5) };
-      }
+      this.pattern[idx] = { note: choice(this.scalePool), velocity: randFloat(0.32, 0.68) };
     }
   }
 
@@ -530,26 +617,19 @@ class EffectsChain {
 class InstrumentRack {
   constructor(fx){
     this.fx = fx;
+    this.roles = {};
 
-    // NAPPE (pad d'accords)
-    this.pad = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type:'fatsine', count:3, spread:25 },
-      envelope: { attack:3, decay:2, sustain:0.85, release:6 },
-    });
+    // NAPPE (pad d'accords) — remplaçable par un échantillon
     this.padFilter = new Tone.Filter({ frequency:2200, type:'lowpass', rolloff:-12, Q:0.5 });
-    this.pad.chain(this.padFilter);
+    this.roles.pad = this._registerRole('pad', () => this._makePadSynth(), this.padFilter, { attack:2, release:4 });
     fx.connectInstrument(this.padFilter, { dry:0.5, reverbSend:0.55, delaySend:0.1 });
 
-    // BASSE
-    this.bass = new Tone.MonoSynth({
-      oscillator: { type:'sine' },
-      envelope: { attack:1.2, decay:0.6, sustain:0.85, release:4 },
-      filter: { type:'lowpass', Q:0.8 },
-      filterEnvelope: { attack:1, decay:0.4, sustain:0.6, release:3, baseFrequency:90, octaves:1.5 },
-    });
-    fx.connectInstrument(this.bass, { dry:0.55, reverbSend:0.15, delaySend:0 });
+    // BASSE — remplaçable par un échantillon
+    this.bassInput = new Tone.Gain(1);
+    this.roles.bass = this._registerRole('bass', () => this._makeBassSynth(), this.bassInput, { attack:0.3, release:2 });
+    fx.connectInstrument(this.bassInput, { dry:0.55, reverbSend:0.15, delaySend:0 });
 
-    // ATMOSPHÈRE (drone continu, très réverbéré)
+    // ATMOSPHÈRE (drone continu, très réverbéré — reste toujours synthétisé)
     this.atmoOsc = new Tone.FatOscillator({ frequency:110, type:'sine', spread:40, count:3 }).start();
     this.atmoGain = new Tone.Gain(0);
     this.atmoOsc.connect(this.atmoGain);
@@ -559,33 +639,107 @@ class InstrumentRack {
     this.atmoLfo = new Tone.LFO({ frequency:0.03, min:0.05, max:0.22 }).start();
     this.atmoLfo.connect(this.atmoGain.gain);
 
-    // PLUCK (motifs)
-    this.pluck = new Tone.PolySynth(Tone.Synth, {
-      oscillator: { type:'triangle8' },
-      envelope: { attack:0.008, decay:0.5, sustain:0.05, release:1.4 },
-    });
+    // PLUCK (motifs) — remplaçable par un échantillon
     this.pluckPanner = new Tone.AutoPanner({ frequency:0.06, depth:0.35 }).start();
-    this.pluck.chain(this.pluckPanner);
+    this.roles.pluck = this._registerRole('pluck', () => this._makePluckSynth(), this.pluckPanner, { attack:0.005, release:0.6 });
     fx.connectInstrument(this.pluckPanner, { dry:0.5, reverbSend:0.35, delaySend:0.3 });
 
-    // TEXTURES (bruit filtré en swells, façon granulaire / reverse)
+    // TEXTURES (bruit filtré en swells — reste toujours synthétisé)
     this.noise = new Tone.Noise('pink').start();
     this.textureFilter = new Tone.Filter({ frequency:1400, type:'bandpass', Q:0.6 });
     this.textureEnv = new Tone.AmplitudeEnvelope({ attack:3, decay:1, sustain:0, release:4 });
     this.noise.chain(this.textureFilter, this.textureEnv);
     fx.connectInstrument(this.textureEnv, { dry:0.12, reverbSend:0.7, delaySend:0.1 });
 
-    // ACCENTS (cloches FM isolées)
-    this.bell = new Tone.PolySynth(Tone.FMSynth, {
+    // ACCENTS (cloches FM isolées) — remplaçable par un échantillon
+    this.bellPanner = new Tone.AutoPanner({ frequency:0.1, depth:0.6 }).start();
+    this.roles.accent = this._registerRole('accent', () => this._makeBellSynth(), this.bellPanner, { attack:0.005, release:2 });
+    fx.connectInstrument(this.bellPanner, { dry:0.3, reverbSend:0.6, delaySend:0.25 });
+  }
+
+  _makePadSynth(){
+    return new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type:'fatsine', count:3, spread:25 },
+      envelope: { attack:3, decay:2, sustain:0.85, release:6 },
+    });
+  }
+  _makeBassSynth(){
+    return new Tone.MonoSynth({
+      oscillator: { type:'sine' },
+      envelope: { attack:1.2, decay:0.6, sustain:0.85, release:4 },
+      filter: { type:'lowpass', Q:0.8 },
+      filterEnvelope: { attack:1, decay:0.4, sustain:0.6, release:3, baseFrequency:90, octaves:1.5 },
+    });
+  }
+  _makePluckSynth(){
+    return new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type:'triangle8' },
+      envelope: { attack:0.008, decay:0.5, sustain:0.05, release:1.4 },
+    });
+  }
+  _makeBellSynth(){
+    return new Tone.PolySynth(Tone.FMSynth, {
       harmonicity:3.01, modulationIndex:10,
       envelope: { attack:0.005, decay:2.5, sustain:0, release:3 },
       modulation: { type:'sine' },
       modulationEnvelope: { attack:0.4, decay:0.2, sustain:0.1, release:2 },
     });
-    this.bellPanner = new Tone.AutoPanner({ frequency:0.1, depth:0.6 }).start();
-    this.bell.chain(this.bellPanner);
-    fx.connectInstrument(this.bellPanner, { dry:0.3, reverbSend:0.6, delaySend:0.25 });
   }
+
+  // Enregistre un "rôle" swappable : voix synthétisée par défaut, connectée à un
+  // nœud d'entrée stable (filtre/panner/gain) qui ne change jamais, lui, de place
+  // dans la chaîne d'effets. C'est ce qui permet de remplacer la voix à la volée.
+  _registerRole(name, factory, inputNode, sampleEnv){
+    const voice = factory();
+    voice.connect(inputNode);
+    return { name, defaultFactory:factory, inputNode, voice, isCustom:false, objectUrl:null, sampleEnv };
+  }
+
+  // Charge un fichier audio de l'utilisateur et remplace la voix synthétisée de ce
+  // rôle par un Tone.Sampler mappé sur tout le clavier (une seule note de référence).
+  async loadCustomSample(role, file){
+    const roleDef = this.roles[role];
+    if (!roleDef) throw new Error('Rôle inconnu : ' + role);
+    const url = URL.createObjectURL(file);
+    const sampler = await new Promise((resolve, reject) => {
+      const s = new Tone.Sampler({
+        urls: { C4: url },
+        attack: roleDef.sampleEnv.attack,
+        release: roleDef.sampleEnv.release,
+        onload: () => resolve(s),
+        onerror: (err) => reject(err),
+      });
+    });
+    roleDef.voice.disconnect();
+    try { roleDef.voice.dispose(); } catch(e){}
+    if (roleDef.objectUrl){ try { URL.revokeObjectURL(roleDef.objectUrl); } catch(e){} }
+    sampler.connect(roleDef.inputNode);
+    roleDef.voice = sampler;
+    roleDef.isCustom = true;
+    roleDef.objectUrl = url;
+  }
+
+  // Revient à l'instrument synthétisé d'origine pour ce rôle.
+  resetToSynth(role){
+    const roleDef = this.roles[role];
+    if (!roleDef || !roleDef.isCustom) return;
+    roleDef.voice.disconnect();
+    try { roleDef.voice.dispose(); } catch(e){}
+    if (roleDef.objectUrl){ try { URL.revokeObjectURL(roleDef.objectUrl); } catch(e){} }
+    const fresh = roleDef.defaultFactory();
+    fresh.connect(roleDef.inputNode);
+    roleDef.voice = fresh;
+    roleDef.isCustom = false;
+    roleDef.objectUrl = null;
+  }
+
+  // Accesseurs de compatibilité : le reste du code appelle toujours
+  // rack.pad / rack.bass / rack.pluck / rack.bell, qu'ils soient synthétisés
+  // ou remplacés par un échantillon — la voix active est résolue ici.
+  get pad(){ return this.roles.pad.voice; }
+  get bass(){ return this.roles.bass.voice; }
+  get pluck(){ return this.roles.pluck.voice; }
+  get bell(){ return this.roles.accent.voice; }
 
   setBrightness(freq){
     this.padFilter.frequency.rampTo(freq, 2.5);
@@ -722,7 +876,7 @@ class AmbientApp {
       key:0, scale:'major', mood:'relax', tempo:58,
       volume:75, reverb:55, delay:25, variation:45,
       complexity:35, density:35, accents:20, motif:30,
-      randomKey:true,
+      motifSpeed:'8n', randomKey:true,
     };
   }
 
@@ -748,6 +902,7 @@ class AmbientApp {
       const rootPc = this.pickSessionKey();
       this.harmony = new HarmonyEngine(rootPc, this.params.scale);
       this.melody = new MelodyEngine();
+      this.melody.setScale(rootPc, isMajorLikeScale(this.params.scale));
       this.barCounter = 0;
       this.barsUntilChange = 0;
       this.elapsedSeconds = 0;
@@ -808,6 +963,12 @@ class AmbientApp {
     this.params.key = rootPc;
     this.params.scale = scaleKey;
     if (this.harmony) this.harmony.setKey(rootPc, scaleKey);
+    if (this.melody) this.melody.setScale(rootPc, isMajorLikeScale(scaleKey));
+  }
+
+  setMotifSpeed(value){
+    this.params.motifSpeed = value;
+    if (this.pluckLoop) this.pluckLoop.interval = value;
   }
 
   applyMood(moodKey){
@@ -819,6 +980,7 @@ class AmbientApp {
       density: preset.density, accents: preset.accents, motif: preset.motif,
     });
     if (this.harmony) this.harmony.setKey(this.harmony.rootPc, preset.scale);
+    if (this.melody) this.melody.setScale(this.harmony ? this.harmony.rootPc : this.params.key, isMajorLikeScale(preset.scale));
     if (this.built){
       Tone.Transport.bpm.rampTo(preset.tempo, 2);
       this.fx.setReverbAmount(preset.reverb);
@@ -861,7 +1023,7 @@ class AmbientApp {
       if (this.barCounter >= this.barsUntilChange) this._advanceChord(time);
     }, '1m').start(0);
 
-    this.pluckLoop = new Tone.Loop((time) => { this._pluckStep(time); }, '8n').start(0);
+    this.pluckLoop = new Tone.Loop((time) => { this._pluckStep(time); }, this.params.motifSpeed).start(0);
 
     this.accentLoop = new Tone.Loop((time) => {
       const p = this.params.accents / 100;
@@ -886,8 +1048,6 @@ class AmbientApp {
     const bassMidi = chord.rootPc + 12 * Math.round((36 - chord.rootPc) / 12);
     this.rack.bass.triggerAttack(midiToNote(bassMidi), time);
 
-    this.melody.generate(chord.notes, this.params.complexity);
-
     this.barCounter = 0;
     const densityFactor = this.params.density / 100;
     this.barsUntilChange = clamp(randInt(5, 9) - Math.round(densityFactor * 2), 3, 10);
@@ -898,12 +1058,12 @@ class AmbientApp {
   }
 
   _pluckStep(time){
-    if (!this.melody || !this.harmony.currentChord) return;
+    if (!this.melody) return;
     const step = this.melody.step();
-    if (step) this.rack.pluck.triggerAttackRelease(midiToNote(step.note), '8n', time, step.velocity);
+    if (step) this.rack.pluck.triggerAttackRelease(midiToNote(step.note), this.params.motifSpeed, time, step.velocity);
     if (this.melody.stepIndex % this.melody.length === 0){
       const motifP = this.params.motif / 100;
-      if (Math.random() < motifP * 0.7) this.melody.mutate(this.harmony.currentChord.notes, this.params.variation / 100);
+      if (Math.random() < motifP * 0.7) this.melody.mutate(this.params.variation / 100);
     }
   }
 
@@ -996,6 +1156,18 @@ document.addEventListener('DOMContentLoaded', () => {
   bindRange('sl-reverb','reverb','%');
   bindRange('sl-delay','delay','%');
 
+  // Vitesse du motif : slider à 5 crans musicaux (4n -> 16n), pas une valeur continue.
+  const slMotifSpeed = document.getElementById('sl-motif-speed');
+  const valMotifSpeed = document.getElementById('val-motif-speed');
+  const defaultSpeedIdx = Math.max(0, MOTIF_SPEEDS.findIndex(s => s.value === app.params.motifSpeed));
+  slMotifSpeed.value = defaultSpeedIdx;
+  valMotifSpeed.textContent = MOTIF_SPEEDS[defaultSpeedIdx].label;
+  slMotifSpeed.addEventListener('input', () => {
+    const speed = MOTIF_SPEEDS[Number(slMotifSpeed.value)];
+    valMotifSpeed.textContent = speed.label;
+    app.setMotifSpeed(speed.value);
+  });
+
   function syncSlidersFromParams(){
     const map = { tempo:' BPM', density:'%', variation:'%', complexity:'%', accents:'%', motif:'%', reverb:'%', delay:'%', volume:'%' };
     Object.entries(map).forEach(([k, suffix]) => {
@@ -1032,10 +1204,53 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   app.setDuration(null);
 
+  // --- Échantillons personnalisés ---
+  const SAMPLE_ROLES = ['pad','bass','pluck','accent'];
+  const sampleInputs = {}, sampleStatus = {}, sampleRemoveBtns = {}, sampleCards = {};
+  SAMPLE_ROLES.forEach(role => {
+    sampleInputs[role] = document.querySelector(`.upload-btn input[data-role="${role}"]`);
+    sampleStatus[role] = document.querySelector(`.sample-status[data-status="${role}"]`);
+    sampleRemoveBtns[role] = document.querySelector(`.btn-remove[data-role="${role}"]`);
+    sampleCards[role] = document.querySelector(`.sample-card[data-role="${role}"]`);
+  });
+
+  function enableSampleUploads(){
+    SAMPLE_ROLES.forEach(role => {
+      sampleInputs[role].disabled = false;
+      sampleInputs[role].closest('.upload-btn').classList.remove('disabled');
+    });
+  }
+
+  SAMPLE_ROLES.forEach(role => {
+    sampleInputs[role].closest('.upload-btn').classList.add('disabled');
+    sampleInputs[role].addEventListener('change', async () => {
+      const file = sampleInputs[role].files[0];
+      if (!file) return;
+      sampleStatus[role].textContent = 'Chargement…';
+      try {
+        await app.rack.loadCustomSample(role, file);
+        sampleStatus[role].textContent = file.name;
+        sampleCards[role].classList.add('is-custom');
+        sampleRemoveBtns[role].hidden = false;
+      } catch (err){
+        console.error(err);
+        sampleStatus[role].textContent = 'Erreur de lecture, réessayez';
+      }
+    });
+    sampleRemoveBtns[role].addEventListener('click', () => {
+      app.rack.resetToSynth(role);
+      sampleStatus[role].textContent = 'Synthé par défaut';
+      sampleCards[role].classList.remove('is-custom');
+      sampleRemoveBtns[role].hidden = true;
+      sampleInputs[role].value = '';
+    });
+  });
+
   // --- Transport ---
   const btnPlay = document.getElementById('btn-play');
   const btnStop = document.getElementById('btn-stop');
   let isPlaying = false;
+  let uploadsEnabled = false;
 
   btnPlay.addEventListener('click', async () => {
     if (!isPlaying){
@@ -1043,6 +1258,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { await app.start(); } finally { btnPlay.disabled = false; }
       isPlaying = true;
       btnPlay.textContent = 'Pause';
+      if (!uploadsEnabled){ enableSampleUploads(); uploadsEnabled = true; }
     } else {
       app.pause();
       isPlaying = false;
