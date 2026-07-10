@@ -1,1 +1,1074 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nébuleuse — générateur ambient génératif</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0B0D14;
+    --panel:rgba(19,22,32,0.62);
+    --panel-border:rgba(255,255,255,0.09);
+    --hairline:rgba(255,255,255,0.08);
+    --text:#E7E9F0;
+    --text-dim:#8A8FA3;
+    --teal:#5FE1C9;
+    --violet:#9C8CF0;
+    --amber:#E7A64C;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-body:'Inter',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--bg-deep); color:var(--text);
+    font-family:var(--font-body);
+    overflow-x:hidden;
+  }
+  #bg-canvas{
+    position:fixed; inset:0; width:100%; height:100%;
+    z-index:0; display:block;
+  }
+  :focus-visible{ outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }
 
+  .stage{
+    position:relative; z-index:2;
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:28px 18px 60px;
+  }
+
+  .topbar{
+    width:100%; max-width:920px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:16px;
+    flex-wrap:wrap;
+    animation:fadeSlideDown .8s ease both;
+  }
+  .brand .eyebrow{
+    display:block; font-family:var(--font-mono); font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--teal); margin-bottom:4px;
+  }
+  .brand h1{
+    margin:0; font-family:var(--font-display); font-weight:600; font-size:28px; letter-spacing:.01em;
+  }
+  .readout{
+    display:flex; gap:22px; font-family:var(--font-mono); flex-wrap:wrap;
+  }
+  .readout-item{ display:flex; flex-direction:column; align-items:flex-end; min-width:64px; }
+  .readout-item .label{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); }
+  .readout-item .value{ font-size:16px; color:var(--text); text-shadow:0 0 12px rgba(95,225,201,.35); }
+
+  .visualizer-wrap{
+    width:100%; max-width:920px; height:min(40vh,340px);
+    margin-top:6px;
+  }
+
+  .console{
+    width:100%; max-width:920px; margin-top:8px;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:22px; padding:22px 24px 26px;
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    box-shadow:0 30px 60px -30px rgba(0,0,0,.6);
+    animation:fadeSlideUp .9s .15s ease both;
+  }
+
+  .transport{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding-bottom:18px; border-bottom:1px solid var(--hairline); margin-bottom:18px;
+  }
+  button{ font-family:var(--font-body); cursor:pointer; }
+  .btn-primary, .btn-ghost{
+    font-size:14px; font-weight:600; letter-spacing:.02em;
+    padding:11px 22px; border-radius:12px; border:1px solid transparent;
+    transition:transform .15s ease, background .2s ease, border-color .2s ease;
+  }
+  .btn-primary{ background:linear-gradient(135deg,var(--teal),var(--violet)); color:#0B0D14; }
+  .btn-primary:hover{ transform:translateY(-1px); }
+  .btn-primary:disabled{ opacity:.55; cursor:default; transform:none; }
+  .btn-ghost{ background:transparent; border-color:var(--panel-border); color:var(--text); }
+  .btn-ghost:hover{ border-color:var(--teal); color:var(--teal); }
+
+  .duration-group{ display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+  .duration-group button{
+    background:transparent; border:1px solid var(--panel-border); color:var(--text-dim);
+    font-size:12px; padding:8px 12px; border-radius:9px; transition:all .15s ease;
+  }
+  .duration-group button.active{ background:rgba(95,225,201,.14); border-color:var(--teal); color:var(--teal); }
+  .duration-group button:hover{ color:var(--text); }
+
+  .mood-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+  .section-label{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--text-dim); white-space:nowrap;
+  }
+  .pills{ display:flex; gap:8px; flex-wrap:wrap; }
+  .pill{
+    background:transparent; border:1px solid var(--panel-border); color:var(--text-dim);
+    font-size:12.5px; padding:7px 14px; border-radius:999px; transition:all .15s ease;
+  }
+  .pill.active{ background:rgba(156,140,240,.16); border-color:var(--violet); color:#c9c0fb; }
+  .pill:hover{ color:var(--text); }
+
+  .grid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:26px 28px;
+  }
+  .grid section{ display:flex; flex-direction:column; gap:14px; }
+  .grid label{
+    display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--text-dim);
+  }
+  .grid label .val{ font-family:var(--font-mono); font-size:12px; color:var(--text); align-self:flex-end; margin-top:-18px; }
+  .checkbox{ flex-direction:row !important; align-items:center; gap:8px !important; font-size:12.5px; }
+  .checkbox input{ width:15px; height:15px; accent-color:var(--teal); }
+
+  select{
+    appearance:none; -webkit-appearance:none;
+    background:rgba(255,255,255,.04) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238A8FA3'%3E%3Cpath d='M5.5 7l4.5 5 4.5-5z'/%3E%3C/svg%3E") no-repeat right 10px center;
+    border:1px solid var(--panel-border); color:var(--text);
+    padding:9px 30px 9px 12px; border-radius:10px; font-size:13.5px; font-family:var(--font-body);
+  }
+  select:hover{ border-color:var(--teal); }
+
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:2px;
+    background:linear-gradient(90deg, var(--teal), var(--violet)); outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background:#fff; box-shadow:0 0 0 3px rgba(95,225,201,.3); cursor:pointer;
+    border:none; margin-top:0;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:15px; height:15px; border-radius:50%; background:#fff;
+    box-shadow:0 0 0 3px rgba(95,225,201,.3); cursor:pointer; border:none;
+  }
+
+  @keyframes fadeSlideDown{ from{opacity:0; transform:translateY(-14px);} to{opacity:1; transform:none;} }
+  @keyframes fadeSlideUp{ from{opacity:0; transform:translateY(18px);} to{opacity:1; transform:none;} }
+
+  @media (prefers-reduced-motion: reduce){
+    .topbar, .console{ animation:none; }
+  }
+
+  @media (max-width:780px){
+    .grid{ grid-template-columns:1fr; }
+    .duration-group{ margin-left:0; }
+    .readout{ gap:14px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="stage">
+  <header class="topbar">
+    <div class="brand">
+      <span class="eyebrow">Instrument génératif</span>
+      <h1>Nébuleuse</h1>
+    </div>
+    <div class="readout">
+      <div class="readout-item"><span class="label">Tonalité</span><span id="readout-key" class="value">—</span></div>
+      <div class="readout-item"><span class="label">Accord</span><span id="readout-chord" class="value">—</span></div>
+      <div class="readout-item"><span class="label">Temps</span><span id="readout-time" class="value">00:00</span></div>
+    </div>
+  </header>
+
+  <div class="visualizer-wrap"></div>
+
+  <div class="console">
+    <div class="transport">
+      <button type="button" id="btn-play" class="btn-primary">Lecture</button>
+      <button type="button" id="btn-stop" class="btn-ghost">Arrêt</button>
+      <div class="duration-group" id="duration-group">
+        <button type="button" data-sec="60">1 min</button>
+        <button type="button" data-sec="300">5 min</button>
+        <button type="button" data-sec="600">10 min</button>
+        <button type="button" data-sec="1800">30 min</button>
+        <button type="button" data-sec="3600">1 h</button>
+        <button type="button" data-sec="0" class="active">Infini</button>
+      </div>
+    </div>
+
+    <div class="mood-row">
+      <span class="section-label">Humeur</span>
+      <div class="pills" id="mood-pills">
+        <button type="button" class="pill active" data-mood="relax">Relax</button>
+        <button type="button" class="pill" data-mood="dreamy">Dreamy</button>
+        <button type="button" class="pill" data-mood="cinematic">Cinematic</button>
+        <button type="button" class="pill" data-mood="dark">Dark</button>
+        <button type="button" class="pill" data-mood="hopeful">Hopeful</button>
+        <button type="button" class="pill" data-mood="meditation">Meditation</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section>
+        <span class="section-label">Tonalité</span>
+        <label>Clé
+          <select id="sel-key"></select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="chk-random-key" checked> Aléatoire à chaque lecture</label>
+        <label>Gamme
+          <select id="sel-scale"></select>
+        </label>
+        <label>Tempo <span class="val" id="val-tempo"></span>
+          <input type="range" id="sl-tempo" min="40" max="90" step="1">
+        </label>
+        <label>Volume <span class="val" id="val-volume"></span>
+          <input type="range" id="sl-volume" min="0" max="100" step="1">
+        </label>
+      </section>
+
+      <section>
+        <span class="section-label">Texture &amp; dynamique</span>
+        <label>Densité musicale <span class="val" id="val-density"></span>
+          <input type="range" id="sl-density" min="0" max="100" step="1">
+        </label>
+        <label>Intensité des variations <span class="val" id="val-variation"></span>
+          <input type="range" id="sl-variation" min="0" max="100" step="1">
+        </label>
+        <label>Complexité harmonique <span class="val" id="val-complexity"></span>
+          <input type="range" id="sl-complexity" min="0" max="100" step="1">
+        </label>
+        <label>Fréquence des accents <span class="val" id="val-accents"></span>
+          <input type="range" id="sl-accents" min="0" max="100" step="1">
+        </label>
+        <label>Fréquence des motifs <span class="val" id="val-motif"></span>
+          <input type="range" id="sl-motif" min="0" max="100" step="1">
+        </label>
+      </section>
+
+      <section>
+        <span class="section-label">Espace</span>
+        <label>Réverbération <span class="val" id="val-reverb"></span>
+          <input type="range" id="sl-reverb" min="0" max="100" step="1">
+        </label>
+        <label>Delay <span class="val" id="val-delay"></span>
+          <input type="range" id="sl-delay" min="0" max="100" step="1">
+        </label>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+'use strict';
+
+/* =======================================================================
+   1. THÉORIE MUSICALE
+   Gammes, accords diatoniques calculés algorithmiquement, presets d'humeur.
+   ======================================================================= */
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']; // pour Tone.js
+const FR_NOTES   = ['Do','Do♯','Ré','Ré♯','Mi','Fa','Fa♯','Sol','Sol♯','La','La♯','Si']; // pour l'interface
+
+const SCALES = {
+  major:      { name:'Majeur (Ionien)', steps:[0,2,4,5,7,9,11] },
+  minor:      { name:'Mineur (Éolien)', steps:[0,2,3,5,7,8,10] },
+  dorian:     { name:'Dorien',          steps:[0,2,3,5,7,9,10] },
+  lydian:     { name:'Lydien',          steps:[0,2,4,6,7,9,11] },
+  mixolydian: { name:'Mixolydien',      steps:[0,2,4,5,7,9,10] },
+  phrygian:   { name:'Phrygien',        steps:[0,1,3,5,7,8,10] },
+};
+
+const CHORD_RECIPES = {
+  maj:  { symbol:'',     intervals:[0,4,7] },
+  min:  { symbol:'m',    intervals:[0,3,7] },
+  sus2: { symbol:'sus2', intervals:[0,2,7] },
+  sus4: { symbol:'sus4', intervals:[0,5,7] },
+  add9: { symbol:'add9', intervals:[0,4,7,2] },
+  maj7: { symbol:'maj7', intervals:[0,4,7,11] },
+  min7: { symbol:'m7',   intervals:[0,3,7,10] },
+};
+const SIMPLE_QUALITIES = ['maj','min','sus2','sus4'];
+const RICH_QUALITIES   = ['add9','maj7','min7'];
+
+const MOOD_PRESETS = {
+  relax:      { scale:'major',      tempo:58, filter:2600, reverb:55, delay:25, complexity:35, density:35, accents:20, motif:30 },
+  dreamy:     { scale:'lydian',     tempo:54, filter:2200, reverb:70, delay:40, complexity:55, density:40, accents:25, motif:25 },
+  cinematic:  { scale:'dorian',     tempo:64, filter:3000, reverb:65, delay:30, complexity:60, density:55, accents:35, motif:20 },
+  dark:       { scale:'phrygian',   tempo:50, filter:1200, reverb:60, delay:20, complexity:45, density:30, accents:15, motif:35 },
+  hopeful:    { scale:'mixolydian', tempo:70, filter:3400, reverb:50, delay:30, complexity:40, density:50, accents:40, motif:20 },
+  meditation: { scale:'dorian',     tempo:46, filter:1800, reverb:75, delay:15, complexity:25, density:20, accents:10, motif:45 },
+};
+
+function midiToNote(midi){
+  const name = NOTE_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return name + octave;
+}
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function randFloat(min,max){ return min + Math.random() * (max - min); }
+function randInt(min,max){ return Math.floor(randFloat(min, max + 1)); }
+function choice(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function weightedChoice(items, weights){
+  const total = weights.reduce((a,b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < items.length; i++){ r -= weights[i]; if (r <= 0) return items[i]; }
+  return items[items.length - 1];
+}
+
+/* =======================================================================
+   2. MOTEUR HARMONIQUE
+   Construit la palette d'accords diatoniques (parmi les qualités autorisées)
+   pour une clé + gamme donnée, puis fait évoluer une progression cohérente.
+   ======================================================================= */
+
+class HarmonyEngine {
+  constructor(rootPc, scaleKey){
+    this.prevVoicing = null;
+    this.currentChord = null;
+    this.degreeIndex = 0;
+    this.setKey(rootPc, scaleKey);
+  }
+
+  setKey(rootPc, scaleKey){
+    this.rootPc = rootPc;
+    this.scaleKey = scaleKey;
+    this.scaleSteps = SCALES[scaleKey].steps;
+    this.palette = this._buildPalette();
+    this.degreeIndex = Math.min(this.degreeIndex, this.palette.length - 1);
+  }
+
+  _buildPalette(){
+    const scalePcs = new Set(this.scaleSteps.map(s => (this.rootPc + s) % 12));
+    const palette = [];
+    this.scaleSteps.forEach((step, degree) => {
+      const degreeRootPc = (this.rootPc + step) % 12;
+      const qualities = [];
+      Object.keys(CHORD_RECIPES).forEach(q => {
+        const ivs = CHORD_RECIPES[q].intervals;
+        const ok = ivs.every(iv => scalePcs.has((degreeRootPc + iv) % 12));
+        if (ok) qualities.push(q);
+      });
+      if (qualities.length > 0) palette.push({ degree, rootPc:degreeRootPc, qualities });
+    });
+    return palette.length ? palette : [{ degree:0, rootPc:this.rootPc, qualities:['maj'] }];
+  }
+
+  _nextDegreeIndex(variation){
+    const n = this.palette.length;
+    if (n <= 1) return 0;
+    const openness = variation / 100;
+    const weights = this.palette.map((entry, i) => {
+      if (i === this.degreeIndex) return 0.001;
+      const raw = Math.abs(i - this.degreeIndex);
+      const dist = Math.min(raw, n - raw);
+      let w = 1 / (1 + dist * (1 - openness * 0.6));
+      if (entry.degree === 0) w *= 1.6;
+      return w;
+    });
+    return weightedChoice(this.palette.map((_, i) => i), weights);
+  }
+
+  _chooseQuality(entry, complexity){
+    const simple = entry.qualities.filter(q => SIMPLE_QUALITIES.includes(q));
+    const rich = entry.qualities.filter(q => RICH_QUALITIES.includes(q));
+    const richProb = clamp(complexity / 100, 0.05, 0.9);
+    if (rich.length && Math.random() < richProb) return choice(rich);
+    if (simple.length) return choice(simple);
+    return choice(entry.qualities);
+  }
+
+  _voice(pcs){
+    const base = 55; // registre confortable pour la nappe (autour de G3)
+    let notes = pcs.map(pc => pc + 12 * Math.round((base - pc) / 12));
+    notes = [...new Set(notes)].sort((a,b) => a - b);
+    if (this.prevVoicing && this.prevVoicing.length){
+      const prevAvg = this.prevVoicing.reduce((a,b) => a + b, 0) / this.prevVoicing.length;
+      let best = notes, bestDist = Infinity;
+      [-12, 0, 12].forEach(shift => {
+        const shifted = notes.map(n => n + shift);
+        const avg = shifted.reduce((a,b) => a + b, 0) / shifted.length;
+        const dist = Math.abs(avg - prevAvg);
+        if (dist < bestDist){ bestDist = dist; best = shifted; }
+      });
+      notes = best;
+    }
+    return notes;
+  }
+
+  nextChord(complexity, variation){
+    this.degreeIndex = this._nextDegreeIndex(variation);
+    const entry = this.palette[this.degreeIndex];
+    const quality = this._chooseQuality(entry, complexity);
+    const recipe = CHORD_RECIPES[quality];
+    const pcs = recipe.intervals.map(iv => (entry.rootPc + iv) % 12);
+    const voicing = this._voice(pcs);
+    this.prevVoicing = voicing;
+    this.currentChord = {
+      degree: entry.degree,
+      rootPc: entry.rootPc,
+      quality,
+      symbol: FR_NOTES[entry.rootPc] + recipe.symbol,
+      notes: voicing,
+    };
+    return this.currentChord;
+  }
+}
+
+/* =======================================================================
+   3. MOTEUR MÉLODIQUE
+   Motifs de pluck répétitifs qui mutent légèrement au fil du temps.
+   ======================================================================= */
+
+class MelodyEngine {
+  constructor(){
+    this.pattern = [];
+    this.length = 8;
+    this.stepIndex = 0;
+    this.generate([60,64,67], 30);
+  }
+
+  generate(chordNotes, complexity){
+    this.length = choice([8, 8, 12, 16]);
+    const pattern = [];
+    for (let i = 0; i < this.length; i++){
+      if (Math.random() < 0.35){ pattern.push(null); continue; }
+      const passingProb = 0.15 + (complexity / 100) * 0.15;
+      let note;
+      if (Math.random() < passingProb){
+        note = choice(chordNotes) + 12 + choice([-2,-1,1,2]);
+      } else {
+        note = choice(chordNotes) + 12;
+      }
+      pattern.push({ note, velocity: randFloat(0.32, 0.68) });
+    }
+    this.pattern = pattern;
+    this.stepIndex = 0;
+  }
+
+  mutate(chordNotes, amount){
+    const mutations = 1 + Math.round(clamp(amount, 0, 1) * 3);
+    for (let i = 0; i < mutations; i++){
+      const idx = randInt(0, this.pattern.length - 1);
+      const r = Math.random();
+      if (r < 0.35){
+        this.pattern[idx] = null;
+      } else if (r < 0.8){
+        this.pattern[idx] = { note: choice(chordNotes) + 12, velocity: randFloat(0.32, 0.68) };
+      } else {
+        this.pattern[idx] = { note: choice(chordNotes) + 12 + choice([-2,-1,1,2]), velocity: randFloat(0.28, 0.5) };
+      }
+    }
+  }
+
+  step(){
+    const s = this.pattern[this.stepIndex % this.pattern.length];
+    this.stepIndex++;
+    return s;
+  }
+}
+
+/* =======================================================================
+   4. CHAÎNE D'EFFETS
+   Bus partagés (reverb / delay en send-return) + bus maître.
+   ======================================================================= */
+
+class EffectsChain {
+  constructor(){
+    this.masterGain = new Tone.Gain(0.85);
+    this.saturation = new Tone.Distortion({ distortion:0.08, wet:0.15 });
+    this.chorus = new Tone.Chorus({ frequency:0.25, delayTime:3.5, depth:0.45, wet:0.35 }).start();
+    this.masterFilter = new Tone.Filter({ frequency:2600, type:'lowpass', rolloff:-12 });
+    this.compressor = new Tone.Compressor({ threshold:-22, ratio:3, attack:0.03, release:0.3 });
+    this.limiter = new Tone.Limiter(-1);
+
+    this.reverb = new Tone.Reverb({ decay:9, preDelay:0.02 });
+    this.reverbReturn = new Tone.Gain(0.45);
+    this.delay = new Tone.FeedbackDelay({ delayTime:'8n.', feedback:0.35 });
+    this.delayReturn = new Tone.Gain(0.25);
+    this.reverbSend = new Tone.Gain(1);
+    this.delaySend = new Tone.Gain(1);
+
+    this.reverbSend.connect(this.reverb);
+    this.reverb.connect(this.reverbReturn);
+    this.reverbReturn.connect(this.masterGain);
+
+    this.delaySend.connect(this.delay);
+    this.delay.connect(this.delayReturn);
+    this.delayReturn.connect(this.masterGain);
+
+    this.masterGain.chain(this.saturation, this.chorus, this.masterFilter, this.compressor, this.limiter, Tone.Destination);
+
+    this.analyser = new Tone.Analyser('fft', 128);
+    this.waveform = new Tone.Analyser('waveform', 1024);
+    this.masterGain.connect(this.analyser);
+    this.masterGain.connect(this.waveform);
+  }
+
+  async prepare(){ await this.reverb.generate(); }
+
+  connectInstrument(node, { dry = 0.5, reverbSend = 0.3, delaySend = 0.1 } = {}){
+    const dryGain = new Tone.Gain(dry);
+    const rGain = new Tone.Gain(reverbSend);
+    const dGain = new Tone.Gain(delaySend);
+    node.connect(dryGain); dryGain.connect(this.masterGain);
+    node.connect(rGain);   rGain.connect(this.reverbSend);
+    node.connect(dGain);   dGain.connect(this.delaySend);
+    return { dryGain, rGain, dGain };
+  }
+
+  setReverbAmount(v){ this.reverbReturn.gain.rampTo(clamp(v / 100, 0, 1) * 0.9, 0.5); }
+  setDelayAmount(v){
+    this.delayReturn.gain.rampTo(clamp(v / 100, 0, 1) * 0.6, 0.5);
+    this.delay.feedback.rampTo(0.2 + (v / 100) * 0.3, 0.5);
+  }
+  setVolume(v){ this.masterGain.gain.rampTo(clamp(v / 100, 0, 1), 0.15); }
+  setBrightness(freqHz){ this.masterFilter.frequency.rampTo(freqHz, 2.5); }
+}
+
+/* =======================================================================
+   5. INSTRUMENTS
+   Nappe / basse / pluck / atmosphère / textures / accents.
+   ======================================================================= */
+
+class InstrumentRack {
+  constructor(fx){
+    this.fx = fx;
+
+    // NAPPE (pad d'accords)
+    this.pad = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type:'fatsine', count:3, spread:25 },
+      envelope: { attack:3, decay:2, sustain:0.85, release:6 },
+    });
+    this.padFilter = new Tone.Filter({ frequency:2200, type:'lowpass', rolloff:-12, Q:0.5 });
+    this.pad.chain(this.padFilter);
+    fx.connectInstrument(this.padFilter, { dry:0.5, reverbSend:0.55, delaySend:0.1 });
+
+    // BASSE
+    this.bass = new Tone.MonoSynth({
+      oscillator: { type:'sine' },
+      envelope: { attack:1.2, decay:0.6, sustain:0.85, release:4 },
+      filter: { type:'lowpass', Q:0.8 },
+      filterEnvelope: { attack:1, decay:0.4, sustain:0.6, release:3, baseFrequency:90, octaves:1.5 },
+    });
+    fx.connectInstrument(this.bass, { dry:0.55, reverbSend:0.15, delaySend:0 });
+
+    // ATMOSPHÈRE (drone continu, très réverbéré)
+    this.atmoOsc = new Tone.FatOscillator({ frequency:110, type:'sine', spread:40, count:3 }).start();
+    this.atmoGain = new Tone.Gain(0);
+    this.atmoOsc.connect(this.atmoGain);
+    this.atmoFilter = new Tone.Filter({ frequency:900, type:'lowpass', rolloff:-24 });
+    this.atmoGain.chain(this.atmoFilter);
+    fx.connectInstrument(this.atmoFilter, { dry:0.15, reverbSend:0.85, delaySend:0.05 });
+    this.atmoLfo = new Tone.LFO({ frequency:0.03, min:0.05, max:0.22 }).start();
+    this.atmoLfo.connect(this.atmoGain.gain);
+
+    // PLUCK (motifs)
+    this.pluck = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type:'triangle8' },
+      envelope: { attack:0.008, decay:0.5, sustain:0.05, release:1.4 },
+    });
+    this.pluckPanner = new Tone.AutoPanner({ frequency:0.06, depth:0.35 }).start();
+    this.pluck.chain(this.pluckPanner);
+    fx.connectInstrument(this.pluckPanner, { dry:0.5, reverbSend:0.35, delaySend:0.3 });
+
+    // TEXTURES (bruit filtré en swells, façon granulaire / reverse)
+    this.noise = new Tone.Noise('pink').start();
+    this.textureFilter = new Tone.Filter({ frequency:1400, type:'bandpass', Q:0.6 });
+    this.textureEnv = new Tone.AmplitudeEnvelope({ attack:3, decay:1, sustain:0, release:4 });
+    this.noise.chain(this.textureFilter, this.textureEnv);
+    fx.connectInstrument(this.textureEnv, { dry:0.12, reverbSend:0.7, delaySend:0.1 });
+
+    // ACCENTS (cloches FM isolées)
+    this.bell = new Tone.PolySynth(Tone.FMSynth, {
+      harmonicity:3.01, modulationIndex:10,
+      envelope: { attack:0.005, decay:2.5, sustain:0, release:3 },
+      modulation: { type:'sine' },
+      modulationEnvelope: { attack:0.4, decay:0.2, sustain:0.1, release:2 },
+    });
+    this.bellPanner = new Tone.AutoPanner({ frequency:0.1, depth:0.6 }).start();
+    this.bell.chain(this.bellPanner);
+    fx.connectInstrument(this.bellPanner, { dry:0.3, reverbSend:0.6, delaySend:0.25 });
+  }
+
+  setBrightness(freq){
+    this.padFilter.frequency.rampTo(freq, 2.5);
+    this.atmoFilter.frequency.rampTo(Math.max(300, freq * 0.5), 3);
+  }
+}
+
+/* =======================================================================
+   6. VISUALISEUR
+   Fond animé + anneau spectral circulaire réagissant à l'audio.
+   ======================================================================= */
+
+class Visualizer {
+  constructor(canvas, app){
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.app = app;
+    this.t = 0;
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+    if (this.reduceMotion){
+      this._draw();
+      setInterval(() => { this.t += 0.05; this._draw(); }, 1200);
+    } else {
+      this._loop();
+    }
+  }
+
+  _resize(){
+    this.w = this.canvas.clientWidth;
+    this.h = this.canvas.clientHeight;
+    this.canvas.width = this.w * this.dpr;
+    this.canvas.height = this.h * this.dpr;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  _loop(){
+    requestAnimationFrame(() => this._loop());
+    this.t += 0.008;
+    this._draw();
+  }
+
+  _level(){
+    if (!this.app.fx) return 0.08 + Math.sin(this.t * 0.6) * 0.02;
+    const wf = this.app.fx.waveform.getValue();
+    let sum = 0;
+    for (let i = 0; i < wf.length; i++) sum += wf[i] * wf[i];
+    return Math.sqrt(sum / wf.length);
+  }
+
+  _hueForMood(){
+    const map = { relax:170, dreamy:250, cinematic:210, dark:265, hopeful:35, meditation:190 };
+    return map[this.app.params.mood] ?? 190;
+  }
+
+  _draw(){
+    const { ctx, w, h } = this;
+    ctx.clearRect(0, 0, w, h);
+    const level = this._level();
+    const cx = w / 2, cy = h * 0.46;
+    const hue = this._hueForMood();
+
+    const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(w, h) * 0.7);
+    g.addColorStop(0, `hsla(${hue}, 70%, ${16 + level * 55}%, 0.55)`);
+    g.addColorStop(0.55, `hsla(${hue + 40}, 55%, 11%, 0.32)`);
+    g.addColorStop(1, 'hsla(230,40%,4%,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    const spec = this.app.fx ? this.app.fx.analyser.getValue() : null;
+    const bars = spec ? spec.length : 48;
+    const radius = Math.min(w, h) * 0.2;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    for (let i = 0; i < bars; i++){
+      const angle = (i / bars) * Math.PI * 2;
+      let mag;
+      if (spec){ mag = clamp((spec[i] + 100) / 100, 0, 1); }
+      else { mag = 0.15 + Math.sin(this.t * 2 + i * 0.5) * 0.05; }
+      const len = radius * (0.3 + mag * 1.4);
+      const x1 = Math.cos(angle) * radius, y1 = Math.sin(angle) * radius;
+      const x2 = Math.cos(angle) * (radius + len), y2 = Math.sin(angle) * (radius + len);
+      ctx.strokeStyle = `hsla(${hue + i}, 80%, 70%, ${0.22 + mag * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+
+    const coreR = radius * (0.55 + level * 3);
+    const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(coreR, 1));
+    coreGrad.addColorStop(0, `hsla(${hue + 20}, 85%, 80%, 0.9)`);
+    coreGrad.addColorStop(1, `hsla(${hue + 20}, 85%, 50%, 0)`);
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath(); ctx.arc(0, 0, Math.max(coreR, 1), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* =======================================================================
+   7. CHEF D'ORCHESTRE (AmbientApp)
+   Relie harmonie, mélodie, instruments et effets via le Transport de Tone.js.
+   ======================================================================= */
+
+class AmbientApp {
+  constructor(){
+    this.fx = null;
+    this.rack = null;
+    this.harmony = null;
+    this.melody = null;
+    this.built = false;
+    this.playing = false;
+    this._fading = false;
+
+    this.chordLoop = null;
+    this.pluckLoop = null;
+    this.accentLoop = null;
+    this.textureLoop = null;
+
+    this.barCounter = 0;
+    this.barsUntilChange = 0;
+
+    this.durationSeconds = null;
+    this.remainingSeconds = null;
+    this.elapsedSeconds = 0;
+    this.timerInterval = null;
+
+    this.onChordChange = null;
+    this.onTick = null;
+    this.onStopped = null;
+
+    this.params = {
+      key:0, scale:'major', mood:'relax', tempo:58,
+      volume:75, reverb:55, delay:25, variation:45,
+      complexity:35, density:35, accents:20, motif:30,
+      randomKey:true,
+    };
+  }
+
+  async ensureBuilt(){
+    if (this.built) return;
+    this.fx = new EffectsChain();
+    await this.fx.prepare();
+    this.rack = new InstrumentRack(this.fx);
+    this.built = true;
+  }
+
+  pickSessionKey(){
+    return this.params.randomKey ? randInt(0, 11) : this.params.key;
+  }
+
+  async start(){
+    await Tone.start();
+    await this.ensureBuilt();
+    if (this.playing) return;
+
+    const freshSession = !this.harmony;
+    if (freshSession){
+      const rootPc = this.pickSessionKey();
+      this.harmony = new HarmonyEngine(rootPc, this.params.scale);
+      this.melody = new MelodyEngine();
+      this.barCounter = 0;
+      this.barsUntilChange = 0;
+      this.elapsedSeconds = 0;
+      this.remainingSeconds = this.durationSeconds;
+      this._fading = false;
+      Tone.Transport.position = 0;
+    }
+
+    Tone.Transport.bpm.value = this.params.tempo;
+    this.fx.setVolume(this.params.volume);
+    this.fx.setReverbAmount(this.params.reverb);
+    this.fx.setDelayAmount(this.params.delay);
+
+    if (freshSession) this._scheduleLoops();
+
+    Tone.Transport.start();
+    this.playing = true;
+    this._startTimer();
+  }
+
+  pause(){
+    if (!this.built) return;
+    Tone.Transport.pause();
+    this.playing = false;
+    this._stopTimerInterval();
+  }
+
+  async stop({ fade = 1.5 } = {}){
+    if (!this.built) return;
+    this._stopTimerInterval();
+    this.fx.masterGain.gain.cancelScheduledValues(Tone.now());
+    this.fx.masterGain.gain.rampTo(0, fade);
+    await new Promise(r => setTimeout(r, fade * 1000 + 40));
+
+    Tone.Transport.stop();
+    this._clearLoops();
+    try { this.rack.pad.releaseAll(); } catch(e){}
+    try { this.rack.bass.triggerRelease(); } catch(e){}
+
+    this.harmony = null;
+    this.melody = null;
+    this.playing = false;
+    this._fading = false;
+    this.elapsedSeconds = 0;
+    this.remainingSeconds = this.durationSeconds;
+    this.fx.masterGain.gain.value = clamp(this.params.volume / 100, 0, 1);
+
+    if (this.onTick) this.onTick({ seconds:0, infinite:this.durationSeconds === null });
+    if (this.onStopped) this.onStopped();
+  }
+
+  setDuration(seconds){
+    this.durationSeconds = seconds;
+    this.remainingSeconds = seconds;
+  }
+
+  setKeyScale(rootPc, scaleKey){
+    this.params.key = rootPc;
+    this.params.scale = scaleKey;
+    if (this.harmony) this.harmony.setKey(rootPc, scaleKey);
+  }
+
+  applyMood(moodKey){
+    const preset = MOOD_PRESETS[moodKey];
+    if (!preset) return;
+    Object.assign(this.params, {
+      mood: moodKey, scale: preset.scale, tempo: preset.tempo,
+      reverb: preset.reverb, delay: preset.delay, complexity: preset.complexity,
+      density: preset.density, accents: preset.accents, motif: preset.motif,
+    });
+    if (this.harmony) this.harmony.setKey(this.harmony.rootPc, preset.scale);
+    if (this.built){
+      Tone.Transport.bpm.rampTo(preset.tempo, 2);
+      this.fx.setReverbAmount(preset.reverb);
+      this.fx.setDelayAmount(preset.delay);
+      this.rack.setBrightness(preset.filter);
+    }
+  }
+
+  _startTimer(){
+    this._stopTimerInterval();
+    this.timerInterval = setInterval(() => {
+      if (this.durationSeconds === null){
+        this.elapsedSeconds += 1;
+        if (this.onTick) this.onTick({ seconds:this.elapsedSeconds, infinite:true });
+        return;
+      }
+      this.remainingSeconds -= 1;
+      if (this.onTick) this.onTick({ seconds:Math.max(this.remainingSeconds, 0), infinite:false });
+      if (this.remainingSeconds <= 8 && this.remainingSeconds > 0 && !this._fading){
+        this._fading = true;
+        this.fx.masterGain.gain.rampTo(0, this.remainingSeconds);
+      }
+      if (this.remainingSeconds <= 0){
+        this.stop({ fade:0.2 });
+      }
+    }, 1000);
+  }
+  _stopTimerInterval(){ if (this.timerInterval){ clearInterval(this.timerInterval); this.timerInterval = null; } }
+
+  _clearLoops(){
+    [this.chordLoop, this.pluckLoop, this.accentLoop, this.textureLoop].forEach(l => { if (l){ l.stop(); l.dispose(); } });
+    this.chordLoop = this.pluckLoop = this.accentLoop = this.textureLoop = null;
+  }
+
+  _scheduleLoops(){
+    this._clearLoops();
+
+    this.chordLoop = new Tone.Loop((time) => {
+      this.barCounter++;
+      if (this.barCounter >= this.barsUntilChange) this._advanceChord(time);
+    }, '1m').start(0);
+
+    this.pluckLoop = new Tone.Loop((time) => { this._pluckStep(time); }, '8n').start(0);
+
+    this.accentLoop = new Tone.Loop((time) => {
+      const p = this.params.accents / 100;
+      if (Math.random() < p * 0.4) this._triggerAccent(time);
+    }, '2n').start('4n');
+
+    this.textureLoop = new Tone.Loop((time) => {
+      const p = this.params.density / 100;
+      if (Math.random() < p * 0.5) this._triggerTexture(time);
+    }, '1m').start(0);
+  }
+
+  _advanceChord(time){
+    const prevChord = this.harmony.currentChord;
+    const chord = this.harmony.nextChord(this.params.complexity, this.params.variation);
+    const noteNames = chord.notes.map(midiToNote);
+    const prevNames = prevChord ? prevChord.notes.map(midiToNote) : [];
+
+    this.rack.pad.triggerAttack(noteNames, time);
+    if (prevNames.length) this.rack.pad.triggerRelease(prevNames, time + 2.5);
+
+    const bassMidi = chord.rootPc + 12 * Math.round((36 - chord.rootPc) / 12);
+    this.rack.bass.triggerAttack(midiToNote(bassMidi), time);
+
+    this.melody.generate(chord.notes, this.params.complexity);
+
+    this.barCounter = 0;
+    const densityFactor = this.params.density / 100;
+    this.barsUntilChange = clamp(randInt(5, 9) - Math.round(densityFactor * 2), 3, 10);
+
+    if (this.onChordChange){
+      Tone.Draw.schedule(() => this.onChordChange(chord), time);
+    }
+  }
+
+  _pluckStep(time){
+    if (!this.melody || !this.harmony.currentChord) return;
+    const step = this.melody.step();
+    if (step) this.rack.pluck.triggerAttackRelease(midiToNote(step.note), '8n', time, step.velocity);
+    if (this.melody.stepIndex % this.melody.length === 0){
+      const motifP = this.params.motif / 100;
+      if (Math.random() < motifP * 0.7) this.melody.mutate(this.harmony.currentChord.notes, this.params.variation / 100);
+    }
+  }
+
+  _triggerAccent(time){
+    if (!this.harmony || !this.harmony.currentChord) return;
+    const notes = this.harmony.currentChord.notes;
+    const note = choice(notes) + choice([12, 24]);
+    this.rack.bell.triggerAttackRelease(midiToNote(note), '2n', time, randFloat(0.2, 0.45));
+  }
+
+  _triggerTexture(time){
+    const attack = randFloat(1.5, 4);
+    const release = randFloat(2, 5);
+    this.rack.textureEnv.attack = attack;
+    this.rack.textureEnv.release = release;
+    this.rack.textureFilter.frequency.rampTo(randFloat(500, 2600), attack);
+    this.rack.textureEnv.triggerAttackRelease(attack, time);
+  }
+}
+
+/* =======================================================================
+   8. LIAISON INTERFACE
+   ======================================================================= */
+
+function formatTime(total){
+  total = Math.max(0, Math.floor(total));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const app = new AmbientApp();
+  const visCanvas = document.getElementById('bg-canvas');
+  new Visualizer(visCanvas, app);
+
+  // --- Peuplement des menus ---
+  const selKey = document.getElementById('sel-key');
+  FR_NOTES.forEach((n, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = n;
+    if (i === 0) opt.selected = true;
+    selKey.appendChild(opt);
+  });
+  const selScale = document.getElementById('sel-scale');
+  Object.entries(SCALES).forEach(([key, s]) => {
+    const opt = document.createElement('option');
+    opt.value = key; opt.textContent = s.name;
+    if (key === 'major') opt.selected = true;
+    selScale.appendChild(opt);
+  });
+
+  const chkRandom = document.getElementById('chk-random-key');
+  chkRandom.checked = app.params.randomKey;
+  selKey.disabled = chkRandom.checked;
+  chkRandom.addEventListener('change', () => {
+    app.params.randomKey = chkRandom.checked;
+    selKey.disabled = chkRandom.checked;
+  });
+  selKey.addEventListener('change', () => app.setKeyScale(Number(selKey.value), app.params.scale));
+  selScale.addEventListener('change', () => app.setKeyScale(app.params.key, selScale.value));
+
+  // --- Curseurs ---
+  function bindRange(id, paramKey, suffix){
+    const el = document.getElementById(id);
+    const valEl = document.getElementById('val-' + id.replace('sl-',''));
+    el.value = app.params[paramKey];
+    if (valEl) valEl.textContent = el.value + suffix;
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      app.params[paramKey] = v;
+      if (valEl) valEl.textContent = v + suffix;
+      if (app.fx){
+        if (paramKey === 'volume') app.fx.setVolume(v);
+        if (paramKey === 'reverb') app.fx.setReverbAmount(v);
+        if (paramKey === 'delay') app.fx.setDelayAmount(v);
+      }
+      if (paramKey === 'tempo' && app.built) Tone.Transport.bpm.rampTo(v, 0.5);
+    });
+  }
+  bindRange('sl-tempo','tempo',' BPM');
+  bindRange('sl-volume','volume','%');
+  bindRange('sl-density','density','%');
+  bindRange('sl-variation','variation','%');
+  bindRange('sl-complexity','complexity','%');
+  bindRange('sl-accents','accents','%');
+  bindRange('sl-motif','motif','%');
+  bindRange('sl-reverb','reverb','%');
+  bindRange('sl-delay','delay','%');
+
+  function syncSlidersFromParams(){
+    const map = { tempo:' BPM', density:'%', variation:'%', complexity:'%', accents:'%', motif:'%', reverb:'%', delay:'%', volume:'%' };
+    Object.entries(map).forEach(([k, suffix]) => {
+      const el = document.getElementById('sl-' + k);
+      const valEl = document.getElementById('val-' + k);
+      if (!el) return;
+      el.value = app.params[k];
+      if (valEl) valEl.textContent = el.value + suffix;
+    });
+    selScale.value = app.params.scale;
+  }
+
+  // --- Humeur ---
+  const moodPills = document.querySelectorAll('#mood-pills .pill');
+  moodPills.forEach(btn => {
+    btn.addEventListener('click', () => {
+      moodPills.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      app.applyMood(btn.dataset.mood);
+      syncSlidersFromParams();
+    });
+  });
+
+  // --- Durée ---
+  const durButtons = document.querySelectorAll('#duration-group button');
+  durButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      durButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const sec = Number(btn.dataset.sec);
+      app.setDuration(sec === 0 ? null : sec);
+      document.getElementById('readout-time').textContent = formatTime(sec === 0 ? 0 : sec);
+    });
+  });
+  app.setDuration(null);
+
+  // --- Transport ---
+  const btnPlay = document.getElementById('btn-play');
+  const btnStop = document.getElementById('btn-stop');
+  let isPlaying = false;
+
+  btnPlay.addEventListener('click', async () => {
+    if (!isPlaying){
+      btnPlay.disabled = true;
+      try { await app.start(); } finally { btnPlay.disabled = false; }
+      isPlaying = true;
+      btnPlay.textContent = 'Pause';
+    } else {
+      app.pause();
+      isPlaying = false;
+      btnPlay.textContent = 'Lecture';
+    }
+  });
+
+  btnStop.addEventListener('click', async () => {
+    await app.stop({ fade:1.5 });
+  });
+
+  app.onStopped = () => {
+    isPlaying = false;
+    btnPlay.textContent = 'Lecture';
+  };
+
+  app.onChordChange = (chord) => {
+    document.getElementById('readout-chord').textContent = chord.symbol;
+    document.getElementById('readout-key').textContent =
+      FR_NOTES[app.harmony.rootPc] + ' ' + SCALES[app.harmony.scaleKey].name.split(' ')[0];
+  };
+
+  app.onTick = ({ seconds }) => {
+    document.getElementById('readout-time').textContent = formatTime(seconds);
+  };
+});
+</script>
+</body>
+</html>
